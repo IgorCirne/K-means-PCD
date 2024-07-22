@@ -1,4 +1,4 @@
-CC = gcc -g -fopenmp
+CC = gcc -g -fopenmp -Wall
 CFLAGS = -Iinclude
 CLINK = -lm
 OPT =

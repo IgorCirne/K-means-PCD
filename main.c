@@ -1,11 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "include/km.h"
-
+#include <omp.h>
 
 // Example main() with file importing and k-means execution
 
 int main(int argc, char *argv[]) {
+omp_set_num_threads(4);
 	if (argc > 4) {
 		FILE *fp;
 		char *filename = argv[1];
@@ -19,6 +20,8 @@ int main(int argc, char *argv[]) {
 		double ***clusters;
 		
 		observations = (double **) malloc(sizeof(double *) * observations_size);
+		
+		#pragma omp parallel for
 		for (int i = 0; i < observations_size; i++)
 			observations[i] = (double *) malloc(sizeof(double) * vector_size);
 		
@@ -29,7 +32,7 @@ int main(int argc, char *argv[]) {
 			free(observations);
 			exit(1);
 		}
-		
+		#pragma omp parallel for
 		for (int i = 0; i < observations_size; i++) {
 			for (int j = 0; j < vector_size; j++)
 				fscanf(fp, "%lf", &observations[i][j]);
@@ -44,10 +47,12 @@ int main(int argc, char *argv[]) {
 		print_clusters(clusters, k, observations_size, vector_size);
 		printf("\n");
 		
+		#pragma omp parallel for 
 		for (int i=0 ; i<k ; ++i)
 			free(clusters[i]);
 		free(clusters);
-		
+
+		#pragma omp parallel for 
 		for (int i=0 ; i<observations_size ; ++i)
 			free(observations[i]);
 		free(observations);
