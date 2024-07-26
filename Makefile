@@ -1,7 +1,7 @@
-CC = gcc -g -fopenmp -Wall
+CC = gcc -g -fopenmp -Wall -pg
 CFLAGS = -Iinclude
 CLINK = -lm
-OPT =
+OPT = -o3
 
 main.exe: main.o km.o
 	$(CC) main.o km.o -o main.exe $(CLINK)
