@@ -2,11 +2,15 @@
 #include <stdlib.h>
 #include "include/km.h"
 #include <omp.h>
+#include "src/km.c"
 
 // Example main() with file importing and k-means execution
-
+//47s - 4t
+//45s - 8t
+//32s - 16t
+//27s - 32t
 int main(int argc, char *argv[]) {
-omp_set_num_threads(2);
+omp_set_num_threads(8);
 	if (argc > 4) {
 		FILE *fp;
 		char *filename = argv[1];
@@ -37,12 +41,12 @@ omp_set_num_threads(2);
 		}
 		
 		printf("Observations:\n");
-		print_observations(observations, observations_size, vector_size);
+		//print_observations(observations, observations_size, vector_size);
 		printf("\n\n");
 		
 		clusters = km(observations, k, observations_size, vector_size);
 		printf("Clusters:\n");
-		print_clusters(clusters, k, observations_size, vector_size);
+		//print_clusters(clusters, k, observations_size, vector_size);
 		printf("\n");
 		
 		for (int i=0 ; i<k ; ++i)

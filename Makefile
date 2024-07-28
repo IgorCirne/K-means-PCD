@@ -13,4 +13,9 @@ km.o: src/km.c
 	$(CC) $(OPT) -c src/km.c -o km.o
 
 clean:
-	rm *.o *.exe
+	del *.o $(TARGET) gmon.out
+
+profile: $(TARGET)
+	./$(TARGET)
+	gprof $(TARGET) gmon.out > analysis.txt
+
