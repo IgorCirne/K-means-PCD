@@ -5,12 +5,13 @@
 #include "src/km.c"
 
 // Example main() with file importing and k-means execution
-//47s - 4t
-//45s - 8t
-//32s - 16t
-//27s - 32t
+/* Para compilar o programa, gcc -g -fopenmp -Wall -pg -Iinclude -o main main.c -lm
+   Para executar o programa, só digitar ./main dados <observation_size> <vector_size> <k-clusters>
+*/
+
+
 int main(int argc, char *argv[]) {
-omp_set_num_threads(8);
+omp_set_num_threads(2);
 	if (argc > 4) {
 		FILE *fp;
 		char *filename = argv[1];

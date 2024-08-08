@@ -13,7 +13,7 @@
 
 
 int *clusters_sizes;
-
+/*As funções de print não serão paralelizadas, não há sentido em fazer isso*/
 void print_vector(double *vector, int vector_size) {
 	printf("(");
 
@@ -60,11 +60,12 @@ void print_clusters(double ***clusters, int k, int observations_size, int vector
 	printf("}");
 }
 
+
 int compare_clusters(const int *clusters_map1, const int *clusters_map2, int clusters_size) {
     int i;
     int result = 1;
 
-	#pragma omp parallel for
+	#pragma omp parallel for reduction(&& : result)
     for (i = 0; i < clusters_size; ++i) {
         if (clusters_map1[i] != clusters_map2[i]) {
  
@@ -75,6 +76,7 @@ int compare_clusters(const int *clusters_map1, const int *clusters_map2, int clu
     return result;
 }
 
+/*Se alguém conseguir paralelizar eficientemente essa criação lovecraftiana merece um prêmio nobel*/
 double ***km(double **observations, int k, int observations_size, int vector_size) {
 	clusters_sizes = (int *) calloc(k, sizeof(int));
 	int *clusters_map = (int *) calloc(observations_size, sizeof(int));
@@ -116,21 +118,30 @@ double ***km(double **observations, int k, int observations_size, int vector_siz
 	}
 }
 
+/*Na função Re_Centroids explica melhor as infelicidades que tive tentando resolver o segfault que essa função causa
+tirar o free do looop não resolve, usar single não resolve, single trava o programa e eu não sei por que */
+
 double *centroid(double **observations, int observations_size, int vector_size) {
 	double *vector = (double *) calloc(vector_size, sizeof(double));
-
+	
 	for (int i = 0; i < observations_size; ++i) {
 		double *temp = vsum(vector, observations[i], vector_size);
 		free(vector);
 		vector = temp;
 	}
-	
-	#pragma omp parallel for 
+	 
+	#pragma omp parallel for
 	for (int i = 0; i < vector_size; ++i)
+		
+		#pragma omp critical
 		vector[i] /= observations_size;
+	
 	
 	return vector;
 }
+
+/*Apesar de vsum ser chamado dentro de centroid, vale mais a pena paralelizar aqui do que em centroids
+centroids é uma função do diabo que causa segfault */
 
 double *vsum(const double *vector1, const double *vector2, int vector_size) {
 	double *vector = (double *) malloc(sizeof(double) * vector_size);
@@ -142,10 +153,12 @@ double *vsum(const double *vector1, const double *vector2, int vector_size) {
 	return vector;
 }
 
+/*Não se deve paralelizar vsub e innerprod, já que ambas as funções são chamadas
+em partition, que está paralelizada.*/
+
 double *vsub(const double *vector1, const double *vector2, int vector_size) {
 	double *vector = (double *) malloc(sizeof(double) * vector_size);
-	
-	#pragma omp parallel for 
+		 
 	for (int i = 0; i < vector_size; ++i)
 		vector[i] = vector1[i] - vector2[i];
 	
@@ -155,7 +168,6 @@ double *vsub(const double *vector1, const double *vector2, int vector_size) {
 double innerprod(const double *vector1, const double *vector2, int vector_size) {
     double prod = 0;
     
-    #pragma omp parallel for reduction(+:prod)
     for (int i = 0; i < vector_size; ++i)
         prod += vector1[i] * vector2[i];
     
@@ -186,6 +198,7 @@ int rand_num(int size) {
 		if ((numArr = (int *) malloc(sizeof(int) * size)) == NULL)
 			return ERR_NO_MEM;
 		
+		#pragma omp parallel for
 		for (i = 0; i < size; ++i)
 			numArr[i] = i;
 		
@@ -230,14 +243,19 @@ double **initialize(double **observations, int k, int observations_size, int vec
 
 int *partition(double **observations, double **cs, int k, int observations_size, int vector_size) {
     int *clusters_map = (int *) malloc(sizeof(int) * observations_size);
-	
-	#pragma omp parallel for
+	double *temp;
+
+	/*vsub e norm(innerprod) são chamadas aqui dentro, não precisamos paralelizar nenhuma das duas funções acima
+	há um problema, que vsub está realizando alocação de memória a cada loop, e isso é ineficiente, 
+	alguém me ajuda pelo amor de deus*/
+
+	#pragma omp parallel for private(temp)
     for (int i = 0; i < observations_size; ++i) {
         double min_distance = DBL_MAX;
         int centroid = -1;
 
         for (int c = 0; c < k; ++c) {
-            double *temp = vsub(observations[i], cs[c], vector_size);
+            temp = vsub(observations[i], cs[c], vector_size);
             double curr_distance = norm(temp, vector_size);
 
             if (curr_distance < min_distance) {
@@ -254,11 +272,12 @@ int *partition(double **observations, double **cs, int k, int observations_size,
     return clusters_map;
 }
 
+/*Eu não consigo paralelizar isso daqui de jeito nenhum, tentei single, critical, tudo,*/
+
 double **re_centroids(int *clusters_map, double **observations, int k, int observations_size, int vector_size) {
 	double **centroids = (double **) malloc(sizeof(double *) * k);
 	double **temp_arr = (double **) malloc(sizeof(double *) * observations_size);
 	int count = 0;
-
 
 	for (int c = 0; c < k; ++c) {
 		for (int i = 0; i < observations_size; ++i) {
@@ -269,7 +288,6 @@ double **re_centroids(int *clusters_map, double **observations, int k, int obser
 				++count;
 			}
 		}
-		
 		centroids[c] = centroid(temp_arr, count, vector_size);
 		count = 0;
 	}
@@ -281,9 +299,9 @@ double **re_centroids(int *clusters_map, double **observations, int k, int obser
 
 double ***map_clusters(int *clusters_map, double **observations, int k, int observations_size, int vector_size) {
 	double ***clusters = (double ***) malloc(sizeof(double **) * k);
-	
-	#pragma omp parallel for
-	for (int i = 0; i < k; ++i)
+	int i;
+	#pragma omp parallel for private(i)
+	for (i= 0; i < k; ++i)
 		clusters[i] = map_cluster(clusters_map, observations, i, observations_size, vector_size);
 	
 	return clusters;
@@ -291,9 +309,10 @@ double ***map_clusters(int *clusters_map, double **observations, int k, int obse
 
 double **map_cluster(const int *clusters_map, double **observations, int c, int observations_size, int vector_size) {
 	int count = 0;
+	int i;
 	int *temp_arr = (int *) malloc(sizeof(int) * observations_size);
-	#pragma omp parallel for
-	for (int i = 0; i < observations_size; ++i) {
+	#pragma omp parallel for private(count, i)
+	for (i = 0; i < observations_size; ++i) {
 		if (clusters_map[i] == c) {
 			temp_arr[count] = i;
 			++count;
@@ -301,8 +320,8 @@ double **map_cluster(const int *clusters_map, double **observations, int c, int 
 	}
 	
 	double **cluster = (double **) malloc(sizeof(double *) * count);
-	#pragma omp parallel for
-	for (int i = 0; i < count; ++i)
+	#pragma omp parallel for private(i)
+	for (i = 0; i < count; ++i)
 		cluster[i] = observations[temp_arr[i]];
 	
 	free(temp_arr);
