@@ -121,35 +121,20 @@ double ***km(double **observations, int k, int observations_size, int vector_siz
 /* Função centroid alterada para evitar a segfault */
 
 double *centroid(double **observations, int observations_size, int vector_size) {
-	/* Vetor resultante inicializado a zero */
-    double *vector = (double *) calloc(vector_size, sizeof(double));
-
-    /* Iniciar uma região paralela para cada thread alocar seu próprio vetor*/
-    #pragma omp parallel
-    {
-        double *local_vector = (double *) calloc(vector_size, sizeof(double));
-
-        #pragma omp for nowait
-        for (int i = 0; i < observations_size; ++i) {
-            double *temp = vsum(local_vector, observations[i], vector_size);
-            free(local_vector);
-            local_vector = temp;
-        }
-
-        /* Combinar os resultados parciais de cada thread no vetor global, a redução evita falso compartilhamento */
-        #pragma omp for reduction(+:vector[:vector_size])  
-            for (int j = 0; j < vector_size; ++j) {
-                vector[j] += local_vector[j];
-            }
-
-        free(local_vector);
-    }
-	 
-	#pragma omp parallel for reduction(+:vector[:vector_size])
-	for (int i = 0; i < vector_size; ++i)
-		
-		vector[i] /= observations_size;
+	double *vector = (double *) calloc(vector_size, sizeof(double));
 	
+	for (int i = 0; i < observations_size; ++i) {
+		double *temp = vsum(vector, observations[i], vector_size);
+		free(vector);
+		vector = temp;
+	}
+	 
+	 /*Redução aqui faz o programa dar errado*/
+	#pragma omp parallel for
+	for (int i = 0; i < vector_size; ++i){
+		#pragma omp critical
+		vector[i] /= observations_size;
+	}
 	
 	return vector;
 }
@@ -159,7 +144,7 @@ em outras execuções que estão paralelizadas, que está paralelizada.*/
 
 double *vsum(const double *vector1, const double *vector2, int vector_size) {
 	double *vector = (double *) malloc(sizeof(double) * vector_size);
-	 
+	
 	for (int i = 0; i < vector_size; ++i)
 		vector[i] = vector1[i] + vector2[i];
 	
@@ -282,42 +267,24 @@ double ***map_clusters(int *clusters_map, double **observations, int k, int obse
 }
 
 double **map_cluster(const int *clusters_map, double **observations, int c, int observations_size, int vector_size) {
-	// Contar o número de elementos que pertencem ao cluster 'c'
-	int *temp_arr = (int *) malloc(sizeof(int) * observations_size);
-
 	int count = 0;
-
-	#pragma omp parallel
-	{
-		int local_count = 0;
-		int *local_arr = (int *) malloc(sizeof(int) * observations_size);
-
-		#pragma omp for
-		for (int i = 0; i < observations_size; ++i) {
-			if (clusters_map[i] == c) {
-				local_arr[local_count++] = i;
-			}
-		}
-
-		#pragma omp critical
-		{
-			for (int i = 0; i < local_count; ++i) {
-				temp_arr[count++] = local_arr[i];
-			}
-		}
-
-		free(local_arr);
-	}
-
-	double **cluster = (double **) malloc(sizeof(double *) * count);
-
+	int i;
+	int *temp_arr = (int *) malloc(sizeof(int) * observations_size);
 	#pragma omp parallel for
-	for (int i = 0; i < count; ++i) {
-		cluster[i] = observations[temp_arr[i]];
+	for (i = 0; i < observations_size; ++i) {
+		if (clusters_map[i] == c) {
+			temp_arr[count] = i;
+			++count;
+		}
 	}
-
+	
+	double **cluster = (double **) malloc(sizeof(double *) * count);
+	#pragma omp parallel for private(i)
+	for (i = 0; i < count; ++i)
+		cluster[i] = observations[temp_arr[i]];
+	
 	free(temp_arr);
 	clusters_sizes[c] = count;
-
+	
 	return cluster;
 }
