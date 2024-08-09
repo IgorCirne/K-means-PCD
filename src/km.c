@@ -154,14 +154,12 @@ double *vsum(const double *vector1, const double *vector2, int vector_size) {
 
 
 
-double *vsub(const double *vector1, const double *vector2, int vector_size) {
-	double *vector = (double *) malloc(sizeof(double) * vector_size);
-		 
-	for (int i = 0; i < vector_size; ++i)
-		vector[i] = vector1[i] - vector2[i];
-	
-	return vector;
+void vsub_noalloc(double *result, const double *vector1, const double *vector2, int vector_size) {
+    for (int i = 0; i < vector_size; ++i) {
+        result[i] = vector1[i] - vector2[i];
+    }
 }
+
 
 double innerprod(const double *vector1, const double *vector2, int vector_size) {
     double prod = 0;
@@ -202,34 +200,38 @@ double **initialize(double **observations, int k, int observations_size, int vec
 
 int *partition(double **observations, double **cs, int k, int observations_size, int vector_size) {
     int *clusters_map = (int *) malloc(sizeof(int) * observations_size);
-	double *temp;
 
-	/*vsub e norm(innerprod) são chamadas aqui dentro, não precisamos paralelizar nenhuma das duas funções acima
-	há um problema, que vsub está realizando alocação de memória a cada loop, e isso é ineficiente, 
-	alguém me ajuda pelo amor de deus*/
+    #pragma omp parallel 
+    {
+        // Alocar memória para `temp` apenas uma vez por thread
+        double *temp = (double *) malloc(sizeof(double) * vector_size);
 
-	#pragma omp parallel for private(temp)
-    for (int i = 0; i < observations_size; ++i) {
-        double min_distance = DBL_MAX;
-        int centroid = -1;
+        #pragma omp for 
+        for (int i = 0; i < observations_size; ++i) {
+            double min_distance = DBL_MAX;
+            int centroid = -1;
 
-        for (int c = 0; c < k; ++c) {
-            temp = vsub(observations[i], cs[c], vector_size);
-            double curr_distance = norm(temp, vector_size);
+            for (int c = 0; c < k; ++c) {
+                // Reutilizar `temp` em cada iteração
+                vsub_noalloc(temp, observations[i], cs[c], vector_size);
+                double curr_distance = norm(temp, vector_size);
 
-            if (curr_distance < min_distance) {
-                min_distance = curr_distance;
-                centroid = c;
+                if (curr_distance < min_distance) {
+                    min_distance = curr_distance;
+                    centroid = c;
+                }
             }
 
-            free(temp);
+            clusters_map[i] = centroid;
         }
 
-        clusters_map[i] = centroid;
+        // Liberar memória de `temp` ao final da execução do bloco paralelo
+        free(temp);
     }
 
     return clusters_map;
 }
+
 
 /*Eu não consigo paralelizar isso daqui de jeito nenhum, tentei single, critical, tudo, não vai*/
 
