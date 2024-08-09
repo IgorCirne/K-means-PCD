@@ -123,6 +123,7 @@ double ***km(double **observations, int k, int observations_size, int vector_siz
 double *centroid(double **observations, int observations_size, int vector_size) {
 	double *vector = (double *) calloc(vector_size, sizeof(double));
 	
+	#pragma omp parallel for
 	for (int i = 0; i < observations_size; ++i) {
 		double *temp = vsum(vector, observations[i], vector_size);
 		free(vector);
