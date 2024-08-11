@@ -123,7 +123,6 @@ double ***km(double **observations, int k, int observations_size, int vector_siz
 double *centroid(double **observations, int observations_size, int vector_size) {
 	double *vector = (double *) calloc(vector_size, sizeof(double));
 	
-	#pragma omp parallel for private(vector)
 	for (int i = 0; i < observations_size; ++i) {
 		double *temp = vsum(vector, observations[i], vector_size);
 		free(vector);
@@ -240,7 +239,7 @@ double **re_centroids(int *clusters_map, double **observations, int k, int obser
 	double **temp_arr = (double **) malloc(sizeof(double *) * observations_size);
 	int count = 0;
 
-	#pragma omp parallel for reduction(+:count)
+
 	for (int c = 0; c < k; ++c) {
 		for (int i = 0; i < observations_size; ++i) {
 			int curr = clusters_map[i];
@@ -262,7 +261,7 @@ double **re_centroids(int *clusters_map, double **observations, int k, int obser
 double ***map_clusters(int *clusters_map, double **observations, int k, int observations_size, int vector_size) {
 	double ***clusters = (double ***) malloc(sizeof(double **) * k);
 	int i;
-	#pragma omp parallel for private(i)
+	#pragma omp parallel for
 	for (i= 0; i < k; ++i)
 		clusters[i] = map_cluster(clusters_map, observations, i, observations_size, vector_size);
 	
