@@ -11,7 +11,7 @@
 
 
 int main(int argc, char *argv[]) {
-omp_set_num_threads(2);
+	omp_set_num_threads(2);
 	if (argc > 4) {
 		FILE *fp;
 		char *filename = argv[1];
@@ -35,7 +35,7 @@ omp_set_num_threads(2);
 			free(observations);
 			exit(1);
 		}
-		
+		#pragma omp parallel for collapse(2)
 		for (int i = 0; i < observations_size; i++) {
 			for (int j = 0; j < vector_size; j++)
 				fscanf(fp, "%lf", &observations[i][j]);

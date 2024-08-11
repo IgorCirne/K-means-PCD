@@ -101,7 +101,7 @@ double ***km(double **observations, int k, int observations_size, int vector_siz
 		if (compare_clusters(clusters_map, new_clusters_map, observations_size)) {
 			double ***clusters = map_clusters(clusters_map, observations, k, observations_size, vector_size);
 	
-      for (int i = 0; i < k; ++i)
+      		for (int i = 0; i < k; ++i)
 				free(cs[i]);
 			free(cs);
 			free(clusters_map);
@@ -123,7 +123,7 @@ double ***km(double **observations, int k, int observations_size, int vector_siz
 double *centroid(double **observations, int observations_size, int vector_size) {
 	double *vector = (double *) calloc(vector_size, sizeof(double));
 	
-	#pragma omp parallel for
+	#pragma omp parallel for private(vector)
 	for (int i = 0; i < observations_size; ++i) {
 		double *temp = vsum(vector, observations[i], vector_size);
 		free(vector);
@@ -233,7 +233,6 @@ int *partition(double **observations, double **cs, int k, int observations_size,
 }
 
 
-/*Eu não consigo paralelizar isso daqui de jeito nenhum, tentei single, critical, tudo, não vai*/
 
 double **re_centroids(int *clusters_map, double **observations, int k, int observations_size, int vector_size) {
 
@@ -241,6 +240,7 @@ double **re_centroids(int *clusters_map, double **observations, int k, int obser
 	double **temp_arr = (double **) malloc(sizeof(double *) * observations_size);
 	int count = 0;
 
+	#pragma omp parallel for reduction(+:count)
 	for (int c = 0; c < k; ++c) {
 		for (int i = 0; i < observations_size; ++i) {
 			int curr = clusters_map[i];
@@ -262,7 +262,7 @@ double **re_centroids(int *clusters_map, double **observations, int k, int obser
 double ***map_clusters(int *clusters_map, double **observations, int k, int observations_size, int vector_size) {
 	double ***clusters = (double ***) malloc(sizeof(double **) * k);
 	int i;
-	#pragma omp parallel for
+	#pragma omp parallel for private(i)
 	for (i= 0; i < k; ++i)
 		clusters[i] = map_cluster(clusters_map, observations, i, observations_size, vector_size);
 	
@@ -271,10 +271,9 @@ double ***map_clusters(int *clusters_map, double **observations, int k, int obse
 
 double **map_cluster(const int *clusters_map, double **observations, int c, int observations_size, int vector_size) {
 	int count = 0;
-	int i;
 	int *temp_arr = (int *) malloc(sizeof(int) * observations_size);
-	#pragma omp parallel for
-	for (i = 0; i < observations_size; ++i) {
+	#pragma omp parallel for reduction(+:count)
+	for (int i = 0; i < observations_size; ++i) {
 		if (clusters_map[i] == c) {
 			temp_arr[count] = i;
 			++count;
@@ -282,8 +281,8 @@ double **map_cluster(const int *clusters_map, double **observations, int c, int 
 	}
 	
 	double **cluster = (double **) malloc(sizeof(double *) * count);
-	#pragma omp parallel for private(i)
-	for (i = 0; i < count; ++i)
+	#pragma omp parallel for
+	for (int i = 0; i < count; ++i)
 		cluster[i] = observations[temp_arr[i]];
 	
 	free(temp_arr);
